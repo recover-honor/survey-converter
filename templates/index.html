@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>설문지 웹업용 변환기</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #1a1a2e;
+            font-size: 28px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e8e8ff;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .file-info {
+            display: none;
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .file-info.show {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .file-name {
+            color: #0369a1;
+            font-weight: 500;
+        }
+        
+        .remove-file {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            margin-top: 10px;
+        }
+        
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+        
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .progress-container.show {
+            display: block;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .result {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .result.success {
+            display: block;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+        }
+        
+        .result.error {
+            display: block;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+        }
+        
+        .result-icon {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .result-text {
+            text-align: center;
+            color: #166534;
+        }
+        
+        .result.error .result-text {
+            color: #dc2626;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+        
+        .preview-toggle {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .preview-toggle button {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: underline;
+        }
+        
+        .preview-area {
+            display: none;
+            margin-top: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 12px;
+        }
+        
+        .preview-area.show {
+            display: block;
+        }
+        
+        .preview-area pre {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 설문지 웹업용 변환기</h1>
+        <p class="subtitle">Claude AI가 설문지를 분석하여 TheSurvey.ai 업로드용 Excel로 변환합니다</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">파일을 드래그하거나 클릭하여 선택</div>
+            <div class="upload-hint">지원 형식: .docx, .xlsx, .txt, .pdf</div>
+        </div>
+        <input type="file" id="fileInput" accept=".docx,.xlsx,.txt,.pdf">
+        
+        <div class="file-info" id="fileInfo">
+            <span class="file-name" id="fileName"></span>
+            <button class="remove-file" id="removeFile">✕</button>
+        </div>
+        
+        <button class="btn btn-primary" id="convertBtn" disabled>변환하기</button>
+        <button class="btn btn-secondary" id="analyzeBtn" disabled>미리보기 (구조 분석만)</button>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Claude AI가 설문지를 분석 중입니다...</div>
+        </div>
+        
+        <div class="result" id="result">
+            <div class="result-icon" id="resultIcon"></div>
+            <div class="result-text" id="resultText"></div>
+        </div>
+        
+        <div class="preview-toggle" id="previewToggle" style="display:none;">
+            <button id="togglePreview">📊 분석 결과 보기</button>
+        </div>
+        <div class="preview-area" id="previewArea">
+            <pre id="previewContent"></pre>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value">3</div>
+                <div class="stat-label">지원 형식</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">AI</div>
+                <div class="stat-label">Claude 분석</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">∞</div>
+                <div class="stat-label">문항 제한 없음</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const removeFile = document.getElementById('removeFile');
+        const convertBtn = document.getElementById('convertBtn');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const result = document.getElementById('result');
+        const resultIcon = document.getElementById('resultIcon');
+        const resultText = document.getElementById('resultText');
+        const previewToggle = document.getElementById('previewToggle');
+        const previewArea = document.getElementById('previewArea');
+        const previewContent = document.getElementById('previewContent');
+        
+        let selectedFile = null;
+        
+        // 드래그 앤 드롭
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            const allowedTypes = ['.docx', '.xlsx', '.txt', '.pdf'];
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!allowedTypes.includes(ext)) {
+                alert('지원하지 않는 파일 형식입니다.');
+                return;
+            }
+            
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileInfo.classList.add('show');
+            convertBtn.disabled = false;
+            analyzeBtn.disabled = false;
+            
+            // 결과 초기화
+            result.className = 'result';
+            previewToggle.style.display = 'none';
+            previewArea.classList.remove('show');
+        }
+        
+        removeFile.addEventListener('click', () => {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.classList.remove('show');
+            convertBtn.disabled = true;
+            analyzeBtn.disabled = true;
+        });
+        
+        // 변환
+        convertBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            convertBtn.disabled = true;
+            analyzeBtn.disabled = true;
+            progressContainer.classList.add('show');
+            result.className = 'result';
+            
+            // 진행 애니메이션
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress = Math.min(progress + Math.random() * 15, 90);
+                progressFill.style.width = progress + '%';
+            }, 500);
+            
+            const messages = [
+                'Claude AI가 설문지를 분석 중입니다...',
+                '문항 구조를 파악하고 있습니다...',
+                '보기 항목을 정리하고 있습니다...',
+                '분기 로직을 변환 중입니다...',
+                'Excel 파일을 생성하고 있습니다...'
+            ];
+            let msgIdx = 0;
+            const msgInterval = setInterval(() => {
+                msgIdx = (msgIdx + 1) % messages.length;
+                progressText.textContent = messages[msgIdx];
+            }, 2000);
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            try {
+                const response = await fetch('/convert', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                clearInterval(progressInterval);
+                clearInterval(msgInterval);
+                progressFill.style.width = '100%';
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = selectedFile.name.replace(/\.[^.]+$/, '') + '_웹업용.xlsx';
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    result.className = 'result success';
+                    resultIcon.textContent = '✅';
+                    resultText.textContent = '변환 완료! 파일이 다운로드됩니다.';
+                } else {
+                    const error = await response.json();
+                    result.className = 'result error';
+                    resultIcon.textContent = '❌';
+                    resultText.textContent = error.detail || '변환 중 오류가 발생했습니다.';
+                }
+            } catch (e) {
+                clearInterval(progressInterval);
+                clearInterval(msgInterval);
+                result.className = 'result error';
+                resultIcon.textContent = '❌';
+                resultText.textContent = '서버 연결에 실패했습니다.';
+            } finally {
+                progressContainer.classList.remove('show');
+                convertBtn.disabled = false;
+                analyzeBtn.disabled = false;
+            }
+        });
+        
+        // 미리보기 (분석만)
+        analyzeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            convertBtn.disabled = true;
+            analyzeBtn.disabled = true;
+            progressContainer.classList.add('show');
+            progressText.textContent = 'Claude AI가 설문지를 분석 중입니다...';
+            
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress = Math.min(progress + Math.random() * 15, 90);
+                progressFill.style.width = progress + '%';
+            }, 500);
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    previewContent.textContent = JSON.stringify(data, null, 2);
+                    previewToggle.style.display = 'block';
+                    previewArea.classList.add('show');
+                    
+                    result.className = 'result success';
+                    resultIcon.textContent = '📊';
+                    resultText.textContent = `분석 완료! ${data.questions?.length || 0}개 문항 발견`;
+                } else {
+                    const error = await response.json();
+                    result.className = 'result error';
+                    resultIcon.textContent = '❌';
+                    resultText.textContent = error.detail || '분석 중 오류가 발생했습니다.';
+                }
+            } catch (e) {
+                clearInterval(progressInterval);
+                result.className = 'result error';
+                resultIcon.textContent = '❌';
+                resultText.textContent = '서버 연결에 실패했습니다.';
+            } finally {
+                progressContainer.classList.remove('show');
+                convertBtn.disabled = false;
+                analyzeBtn.disabled = false;
+            }
+        });
+        
+        document.getElementById('togglePreview').addEventListener('click', () => {
+            previewArea.classList.toggle('show');
+        });
+    </script>
+</body>
+</html>
