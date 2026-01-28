@@ -70,7 +70,6 @@ CONTINUATION_PROMPT = """이전에 분석한 설문지의 다음 부분입니다
 def parse_json_response(response_text: str) -> dict:
     """Claude 응답에서 JSON 추출 및 파싱"""
     
-    # 1. ```json ... ``` 블록 추출
     json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response_text)
     if json_match:
         json_str = json_match.group(1)
@@ -85,13 +84,11 @@ def parse_json_response(response_text: str) -> dict:
     
     json_str = json_str.strip()
     
-    # 2. 첫 번째 시도: 직접 파싱
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
         pass
     
-    # 3. { } 블록만 추출
     brace_match = re.search(r'\{[\s\S]*\}', json_str)
     if brace_match:
         try:
@@ -99,7 +96,6 @@ def parse_json_response(response_text: str) -> dict:
         except json.JSONDecodeError:
             pass
     
-    # 4. 잘린 JSON 복구 시도
     json_str = json_str.rstrip(',')
     
     open_braces = json_str.count('{') - json_str.count('}')
@@ -117,17 +113,12 @@ def parse_json_response(response_text: str) -> dict:
 
 
 def split_survey_into_chunks(text: str, chunk_size: int = 25000) -> list:
-    """
-    설문지 텍스트를 섹션 경계에서 분할
-    문항 번호 패턴을 기준으로 자연스럽게 분할
-    """
+    """설문지 텍스트를 섹션 경계에서 분할"""
     if len(text) <= chunk_size:
         return [text]
     
     chunks = []
     current_pos = 0
-    
-    # 섹션 구분 패턴 (문항 시작 패턴)
     section_pattern = re.compile(r'\n\s*(\d+\.|\[Q\d+\]|Q\d+\.|SQ\d+\.?|Part\s+[A-Z0-9])', re.IGNORECASE)
     
     while current_pos < len(text):
@@ -137,21 +128,13 @@ def split_survey_into_chunks(text: str, chunk_size: int = 25000) -> list:
             chunks.append(text[current_pos:])
             break
         
-        # 청크 끝 부분에서 섹션 경계 찾기
         search_start = max(current_pos + chunk_size - 3000, current_pos)
         search_text = text[search_start:end_pos]
-        
-        # 마지막 섹션 시작점 찾기
         matches = list(section_pattern.finditer(search_text))
         
         if matches:
-            # 마지막에서 두 번째 매치 위치에서 자르기 (완전한 섹션 포함)
-            if len(matches) >= 2:
-                split_point = search_start + matches[-1].start()
-            else:
-                split_point = search_start + matches[-1].start()
+            split_point = search_start + matches[-1].start()
         else:
-            # 섹션 경계를 못 찾으면 줄바꿈에서 자르기
             newline_pos = text.rfind('\n', current_pos, end_pos)
             split_point = newline_pos if newline_pos > current_pos else end_pos
         
@@ -162,9 +145,7 @@ def split_survey_into_chunks(text: str, chunk_size: int = 25000) -> list:
 
 
 def process_survey_chunks(text: str) -> dict:
-    """
-    긴 설문지를 청크로 나눠서 처리하고 결과 병합
-    """
+    """긴 설문지를 청크로 나눠서 처리하고 결과 병합"""
     chunks = split_survey_into_chunks(text)
     all_questions = []
     last_q_num = 0
@@ -173,7 +154,6 @@ def process_survey_chunks(text: str) -> dict:
         print(f"Processing chunk {i+1}/{len(chunks)} (size: {len(chunk)})")
         
         if i == 0:
-            # 첫 번째 청크
             messages = [
                 {
                     "role": "user",
@@ -181,7 +161,6 @@ def process_survey_chunks(text: str) -> dict:
                 }
             ]
         else:
-            # 후속 청크 - 콘솔번호 이어서
             continuation = CONTINUATION_PROMPT.format(
                 last_q_num=last_q_num,
                 next_q_num=last_q_num + 1
@@ -193,29 +172,41 @@ def process_survey_chunks(text: str) -> dict:
                 }
             ]
         
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=16000,
-            system=SYSTEM_PROMPT,
-            messages=messages
-        )
-        
-        response_text = message.content[0].text
-        
         try:
-            chunk_result = parse_json_response(response_text)
-            chunk_questions = chunk_result.get("questions", [])
+            message = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                system=SYSTEM_PROMPT,
+                messages=messages
+            )
             
-            # 콘솔번호 재조정 (연속성 유지)
+            response_text = message.content[0].text
+            chunk_result = parse_json_response(response_text)
+            
+            if chunk_result is None:
+                print(f"  -> Chunk {i+1} returned None, skipping")
+                continue
+            
+            chunk_questions = chunk_result.get("questions") or []
+            
+            if not chunk_questions:
+                print(f"  -> No questions found in chunk {i+1}")
+                continue
+            
             for q in chunk_questions:
+                if q is None:
+                    continue
                 last_q_num += 1
                 q["콘솔번호"] = f"Q{last_q_num}"
             
-            all_questions.extend(chunk_questions)
+            all_questions.extend([q for q in chunk_questions if q is not None])
             print(f"  -> Found {len(chunk_questions)} questions (total: {len(all_questions)})")
             
         except ValueError as e:
             print(f"  -> Error parsing chunk {i+1}: {e}")
+            continue
+        except Exception as e:
+            print(f"  -> Unexpected error in chunk {i+1}: {e}")
             continue
     
     return {"questions": all_questions}
@@ -233,7 +224,7 @@ async def convert_survey(file: UploadFile = File(...)):
     file_ext = Path(file.filename).suffix.lower()
     
     if file_ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식입니다.")
+        raise HTTPException(status_code=400, detail="지원하지 않는 파일 형식입니다.")
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
         content = await file.read()
@@ -248,7 +239,6 @@ async def convert_survey(file: UploadFile = File(...)):
         
         print(f"Total text length: {len(text)} characters")
         
-        # 청크 분할 처리
         survey_structure = process_survey_chunks(text)
         
         if not survey_structure.get("questions"):
@@ -288,13 +278,11 @@ async def analyze_survey(file: UploadFile = File(...)):
     
     try:
         text = extract_text_from_file(tmp_path, file_ext)
-        
-        # 청크 분할 처리
         result = process_survey_chunks(text)
         
         return {
-            "questions": result.get("questions", []),
-            "total_questions": len(result.get("questions", [])),
+            "questions": result.get("questions") or [],
+            "total_questions": len(result.get("questions") or []),
             "text_length": len(text),
             "chunks_processed": len(split_survey_into_chunks(text))
         }
